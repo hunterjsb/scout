@@ -1,10 +1,10 @@
 from datetime import datetime
 import os
 import tweepy
+import redis
+import json
 
 from .scraper import Scraper, ScrapeResult
-from .cache import RedisCache, Cache
-from typing import Optional
 
 # Type aliases to reduce repetition
 TwitterTweet = tweepy.Tweet
@@ -15,10 +15,12 @@ TwitterResult = ScrapeResult[TwitterTweet]
 class TwitterScraper(Scraper[TwitterTweet]):
     """Twitter/X scraper using Tweepy's Tweet model and v2 API."""
 
-    def __init__(self, tweepy_client: TwitterClient, cache: Optional[Cache] = None):
-        super().__init__(tweepy_client, cache)
+    def __init__(self, tweepy_client: TwitterClient, redis_client: redis.Redis):
+        super().__init__(tweepy_client)
         # Access the raw tweepy client
         self.client = self.raw_source
+        # Simple Redis cache
+        self.redis = redis_client
 
     def scrape(self) -> TwitterResult:
         """Scrape tweets from the configured source."""
@@ -30,36 +32,31 @@ class TwitterScraper(Scraper[TwitterTweet]):
 
     def _fetch_tweets(self) -> list[TwitterTweet]:
         """Fetch tweets using Tweepy v2 API with caching."""
-        # Example: Get recent tweets from public timeline
-        # You can modify this to fetch from specific users, search, etc.
-
-        # Demo: Show what methods are available through introspection
         print(f"Source: {self.source}")
         print(f"Available methods: {list(self.source.get_methods().keys())[:10]}...")  # Show first 10
 
-        # Example: Call methods directly with full typing
         user = self._get_user_cached('elonmusk')
         print(user)
 
-        # For now, return empty list - implement actual API calls here
+        # TODO return tweets
         return []
 
     def _get_user_cached(self, username: str):
         """Get user with caching support."""
-        cache_key = self._get_cache_key('get_user', username=username)
+        cache_key = f"twitter_user:{username}"
 
         # Try cache first
-        cached_result = self._cache_get(cache_key)
-        if cached_result is not None:
+        cached = self.redis.get(cache_key)
+        if cached:
             print(f"Cache hit for user: {username}")
-            return cached_result
+            return json.loads(str(cached))
 
-        # Make API call
+        # Make API call (temporarily disabled due to rate limits)
         print(f"API call for user: {username}")
         user = self.source.get_user(username=username)
 
-        # Cache for 5 minutes (300 seconds)
-        self._cache_set(cache_key, user, ttl=300)
+        # Cache for 5 minutes
+        self.redis.setex(cache_key, 300, json.dumps(user))
 
         return user
 
@@ -80,20 +77,17 @@ if __name__ == "__main__":
     # Create Client as source
     client = tweepy.Client(bearer_token)
 
-    # Create Redis cache from environment variables
-    redis_host = os.environ.get("REDIS_HOST", "localhost")
-    redis_port = int(os.environ.get("REDIS_PORT", "6379"))
-    redis_db = int(os.environ.get("REDIS_DB", "0"))
-
-    try:
-        cache: Optional[Cache] = RedisCache(host=redis_host, port=redis_port, db=redis_db)
-        print(f"Connected to Redis at {redis_host}:{redis_port}")
-    except Exception as e:
-        print(f"Redis connection failed: {e}, falling back to no cache")
-        cache = None
+    # Create simple Redis connection
+    redis_client = redis.Redis(
+        host=os.environ.get("REDIS_HOST", "localhost"),
+        port=int(os.environ.get("REDIS_PORT", "6379")),
+        db=int(os.environ.get("REDIS_DB", "0")),
+        decode_responses=True
+    )
+    print("Connected to Redis")
 
     # Create scraper with caching
-    scraper = TwitterScraper(client, cache)
+    scraper = TwitterScraper(client, redis_client)
     result = scraper.scrape()
 
     if result.error:
