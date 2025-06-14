@@ -51,14 +51,23 @@ class TwitterScraper(Scraper[TwitterTweet]):
             print(f"Cache hit for user: {username}")
             return json.loads(str(cached))
 
-        # Make API call (temporarily disabled due to rate limits)
+        # Make API call
         print(f"API call for user: {username}")
-        user = self.source.get_user(username=username)
+        user_response = self.source.get_user(username=username)
+
+        # Extract essential user data for caching
+        user_dict = {
+            "id": user_response.data.id,
+            "username": user_response.data.username,
+            "name": user_response.data.name,
+            "public_metrics": getattr(user_response.data, 'public_metrics', {}),
+            "verified": getattr(user_response.data, 'verified', False)
+        }
 
         # Cache for 5 minutes
-        self.redis.setex(cache_key, 300, json.dumps(user))
+        self.redis.setex(cache_key, 300, json.dumps(user_dict))
 
-        return user
+        return user_dict
 
 
 # Example usage
