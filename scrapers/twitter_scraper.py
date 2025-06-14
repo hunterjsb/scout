@@ -6,23 +6,17 @@ import json
 
 from .scraper import Scraper, ScrapeResult
 
-# Type aliases to reduce repetition
-TwitterTweet = tweepy.Tweet
-TwitterClient = tweepy.Client
-TwitterResult = ScrapeResult[TwitterTweet]
-
-
-class TwitterScraper(Scraper[TwitterTweet]):
+class TwitterScraper(Scraper[tweepy.Tweet]):
     """Twitter/X scraper using Tweepy's Tweet model and v2 API."""
 
-    def __init__(self, tweepy_client: TwitterClient, redis_client: redis.Redis):
+    def __init__(self, tweepy_client: tweepy.Client, redis_client: redis.Redis):
         super().__init__(tweepy_client)
         # Access the raw tweepy client
         self.client = self.raw_source
         # Simple Redis cache
         self.redis = redis_client
 
-    def scrape(self) -> TwitterResult:
+    def scrape(self) -> ScrapeResult[tweepy.Tweet]:
         """Scrape tweets from the configured source."""
         tweets = self._fetch_tweets()
         return ScrapeResult(
@@ -30,15 +24,12 @@ class TwitterScraper(Scraper[TwitterTweet]):
             timestamp=datetime.now()
         )
 
-    def _fetch_tweets(self) -> list[TwitterTweet]:
+    def _fetch_tweets(self) -> list[tweepy.Tweet]:
         """Fetch tweets using Tweepy v2 API with caching."""
         print(f"Source: {self.source}")
         print(f"Available methods: {list(self.source.get_methods().keys())[:10]}...")  # Show first 10
 
-        user = self._get_user_cached('elonmusk')
-        print(user)
-
-        # TODO return tweets
+        # TODO: Implement actual tweet fetching
         return []
 
     def _get_user_cached(self, username: str):
