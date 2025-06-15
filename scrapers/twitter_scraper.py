@@ -6,14 +6,13 @@ import json
 
 from .scraper import Scraper, ScrapeResult
 
+
 class TwitterScraper(Scraper[tweepy.Tweet]):
     """Twitter/X scraper using Tweepy's Tweet model and v2 API."""
 
     def __init__(self, tweepy_client: tweepy.Client, redis_client: redis.Redis):
         super().__init__(tweepy_client)
-        # Access the raw tweepy client
         self.client = self.raw_source
-        # Simple Redis cache
         self.redis = redis_client
 
     def scrape(self) -> ScrapeResult[tweepy.Tweet]:
@@ -64,29 +63,26 @@ class TwitterScraper(Scraper[tweepy.Tweet]):
 # Example usage
 if __name__ == "__main__":
     from utils.dotenv import load_dotenv
-
-    # Load environment variables
     load_dotenv()
 
-    # Get bearer token from environment
+    # auth
     bearer_token = os.environ.get("TWITTER_BEARER_TOKEN")
     if not bearer_token:
         print("Error: TWITTER_BEARER_TOKEN not found in environment")
         exit(1)
 
-    # Create Client as source
+    # init
     client = tweepy.Client(bearer_token)
 
-    # Create simple Redis connection
+    # cache
     redis_client = redis.Redis(
         host=os.environ.get("REDIS_HOST", "localhost"),
         port=int(os.environ.get("REDIS_PORT", "6379")),
         db=int(os.environ.get("REDIS_DB", "0")),
         decode_responses=True
     )
-    print("Connected to Redis")
 
-    # Create scraper with caching
+    # scrape
     scraper = TwitterScraper(client, redis_client)
     result = scraper.scrape()
 
