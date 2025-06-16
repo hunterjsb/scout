@@ -1,1 +1,2 @@
 # scout
+Simple data scraper.
